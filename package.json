@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "express": "^4.18.2",
+    "fs": "^0.0.1-security",
+    "node-rtsp-stream": "^0.0.9",
+    "ws": "^8.13.0"
+  }
+}

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <script type="text/javascript" src="./jsmpeg.min.js"></script>
+</head>
+<body>
+
+    <div class="container">
+        <canvas id="video-canvas" width="1366" height="750" style="width:980px;height:544px"></canvas>
+    </div>
+
+    <button id="play">播放</button>
+
+</body>
+</html>
+
+<script>
+
+    window.onload = function() {
+
+        const width = document.body.clientWidth;
+        const height = document.body.clientHeight;
+        console.log(width,height);
+        const canvas = document.getElementById('video-canvas');
+        console.log(document.location.hostname);
+        
+        document.getElementById("play").onclick = function () {
+            var urls = 'ws://localhost:9999';
+            var players = new JSMpeg.Player(urls, {canvas: canvas});
+        }
+        
+    }
+    
+</script>

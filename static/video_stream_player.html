@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>流式播放器</title>
+</head>
+<body>
+  <!-- <video src="./src/test.h264" controls></video> -->
+  <video id="stream_video" autoplay="true" controls></video>
+
+  <button id="play">播放</button>
+
+</body>
+<script>
+
+    var appending = false;
+    var mediaSource, mediaSourceBuffer, video;
+
+    video = document.getElementById("stream_video");
+
+    var mimeCodec = 'video/mp4; codecs="avc1.42E01E, mp4a.40.2"';
+    // var mimeCodec = ` video/mp4; codecs="avc1.42E01E, mp4a.40.2" `;
+    // var mimeCodec = 'video/mp4';
+    // var mimeCodec = 'video/mp4; codecs="avc1.4D401F"';
+    
+    // var mimeCodec = 'audio/aac'; // HE-AAC v2
+    if ("MediaSource" in window && MediaSource.isTypeSupported(mimeCodec)) {
+      console.log(`MediaSource in window`);
+      mediaSource = new MediaSource();
+      console.log(mediaSource.readyState); // closed
+      video.src = URL.createObjectURL(mediaSource);
+      // audio.src = URL.createObjectURL(mediaSource);
+      mediaSource.addEventListener("sourceopen", sourceOpenHandler);
+    } else {
+      console.error("Unsupported MIME type or codec: ", mimeCodec);
+    }
+
+    setInterval(() => {
+      console.log(mediaSource.readyState); // closed
+    }, 5000)
+
+    function sourceOpenHandler() {
+      console.log(' ************** mediaSource sourceopen **************');
+      mediaSourceBuffer = mediaSource.addSourceBuffer(mimeCodec);
+
+      let wsServer = `ws://localhost:19898`;
+
+      let fetchBlobTimer;
+      let blobqueue = [];
+
+      mediaSourceBuffer.onupdateend = function() { 
+        console.log("onupdateend");
+        appending = false;
+      }
+
+      document.getElementById("play").onclick = function () {
+
+        var socket = new WebSocket(wsServer);
+      
+        socket.onopen = function() {
+          console.log("连接已建立");
+        }
+        socket.onerror = function() {
+          console.log("onerror");
+        }
+        socket.onclose = function(e) {
+          console.log(e);
+          console.log("onclose");
+        }
+
+        socket.onmessage = function(evt) {
+
+        // mediaSourceBuffer.addEventListener("updateend", function (_) {
+        //   console.log(_)
+        //   console.log(mediaSourceBuffer.updating)
+        //   console.log(mediaSource.readyState)
+        //   // mediaSource.endOfStream();
+        //   // video.play();
+        //   //console.log(mediaSource.readyState); // ended
+        // });
+
+        // var reader = new FileReader();
+        // reader.onload = () => {
+        //   const arrayBuffer = reader.result;
+        //   mediaSourceBuffer.appendBuffer(arrayBuffer);
+        // };
+        // reader.readAsArrayBuffer(evt.data);
+
+          if(typeof evt.data != 'string') {
+            blobqueue.push(evt.data);
+            // 以bufferArray读取
+            if(!fetchBlobTimer) {
+              fetchBlobTimer = setInterval( () => {
+                if(!appending && blobqueue.length) {
+                  const blob = blobqueue.shift();
+                  var reader = new FileReader();
+                  reader.onload = function(evt) {
+                    if (evt.target.readyState == FileReader.DONE) {
+                      appending = true;
+                      mediaSourceBuffer.appendBuffer(evt.target.result);
+                    }
+                  }
+                  reader.readAsArrayBuffer(blob);
+                }
+              }, 0)
+            }
+          } else {
+            console.log(evt.data)
+            switch (evt.data) {
+              case "done":
+                video.play();
+                socket.close();
+              default:
+                break;
+            }
+          }
+        // mediaSourceBuffer.appendBuffer(evt.data);
+        }
+
+      }
+
+      // socket.onmessage = function(evt) {
+      //   console.log(typeof evt.data);
+
+      //   // mediaSourceBuffer.addEventListener("updateend", function (_) {
+      //   //   console.log(_)
+      //   //   console.log(mediaSourceBuffer.updating)
+      //   //   console.log(mediaSource.readyState)
+      //   //   // mediaSource.endOfStream();
+      //   //   // video.play();
+      //   //   //console.log(mediaSource.readyState); // ended
+      //   // });
+
+      //   // var reader = new FileReader();
+      //   // reader.onload = () => {
+      //   //   const arrayBuffer = reader.result;
+      //   //   mediaSourceBuffer.appendBuffer(arrayBuffer);
+      //   // };
+      //   // reader.readAsArrayBuffer(evt.data);
+
+      //   if(typeof evt.data != 'string') { 
+      //     blobqueue.push(evt.data);
+      //     // 以bufferArray读取
+      //     if(!fetchBlobTimer) {
+      //       fetchBlobTimer = setInterval( () => {
+      //         if(!appending && blobqueue.length) {
+      //           const blob = blobqueue.shift();
+      //           var reader = new FileReader();
+      //           reader.onload = function(evt) {
+      //             if (evt.target.readyState == FileReader.DONE) {
+      //               appending = true;
+      //               mediaSourceBuffer.appendBuffer(evt.target.result);
+      //               video.play();
+      //             }
+      //           }
+      //           reader.readAsArrayBuffer(blob);
+      //         }
+      //       }, 0)
+      //     }
+      //   } else {
+      //     console.log(evt.data)
+      //     switch (evt.data) {
+      //       case "done":
+      //         socket.close();
+      //       default:
+      //         break;
+      //     }
+      //   }
+      //   // mediaSourceBuffer.appendBuffer(evt.data);
+      // }
+
+    }
+
+    // video.src = URL.createObjectURL(mediaSource);
+
+    // mediaSource.addEventListener('sourceopen', function() {
+    //     console.log('************** mediaSource sourceopen **************');
+
+    //     mediaSourceBuffer = mediaSource.addSourceBuffer(codec);
+    //     mediaSourceBuffer.onupdateend = function() {
+    //       // console.log("updateend", blobqueue.length, mediaSourceBuffer);
+    //       if (!mediaSourceBuffer.updating && mediaSource.readyState === 'open') {
+    //         mediaSource.endOfStream();
+    //         videoElement.play();
+    //       }
+    //       // appending = false;
+    //     }
+
+
+    //     // let fetchBlobTimer;
+    //     // let blobqueue = [];
+
+    //     // let wsServer = `ws://127.0.0.1:19898`
+
+    //     // // let wsServer = `ws://localhost:9999`
+
+    //     // var socket9 = new WebSocket(wsServer);
+    //     // try {
+
+    //     //   socket9.onopen = function() {
+    //     //     console.log("连接已建立");
+    //     //   }
+    //     //   socket9.onerror = function() {
+    //     //     console.log("onerror");
+    //     //   }
+    //     //   socket9.onclose = function() {
+    //     //     console.log("onclose");
+    //     //   }
+
+    //     //   socket9.onmessage = function(evt) {
+
+
+    //     //     mediaSourceBuffer.appendBuffer(evt.data)
+
+    //     //     // if(typeof evt.data != 'string') {
+
+    //     //     //   blobqueue.push(evt.data)
+
+    //     //     //   // console.log(blobqueue)
+    //     //     //   // 以bufferArray读取
+    //     //     //   if(!fetchBlobTimer) {
+
+    //     //     //     // fetchBlobTimer = setInterval( () => {
+    //     //     //     //   if(!appending && blobqueue.length) {
+    //     //     //     //     const blob = blobqueue.shift();
+    //     //     //     //     var reader = new FileReader();
+    //     //     //     //     reader.onload = function(evt) {
+    //     //     //     //       if (evt.target.readyState == FileReader.DONE) {
+    //     //     //     //         appending = true;
+    //     //     //     //         mediaSourceBuffer.appendBuffer(evt.target.result);
+    //     //     //     //         video.play();
+    //     //     //     //       }
+    //     //     //     //     }
+    //     //     //     //     reader.readAsArrayBuffer(blob);
+    //     //     //     //   }
+    //     //     //     // }, 0)
+
+    //     //     //     fetchBlobTimer = setInterval( () => {
+    //     //     //       console.log(` ################## `, mediaSourceBuffer.updating)
+    //     //     //       if(!mediaSourceBuffer.updating && blobqueue.length) {
+    //     //     //         // console.log("========= 读取blob =========")
+    //     //     //         const blob = blobqueue.shift();
+    //     //     //         var reader = new FileReader();
+    //     //     //         reader.onload = function(evt) {
+    //     //     //           if (evt.target.readyState == FileReader.DONE) {
+    //     //     //             mediaSourceBuffer.appendBuffer(evt.target.result);
+    //     //     //             video.play()
+    //     //     //           }
+    //     //     //         }
+    //     //     //         reader.readAsArrayBuffer(blob);
+    //     //     //       }
+    //     //     //     }, 0)
+
+    //     //     //   }
+              
+    //     //     // } else {
+    //     //     //   // if(evt.data === 'done') {
+    //     //     //   //   console.log(` ************** 传输完成 ************** `)
+    //     //     //   //   fetchBlobTimer = setInterval( () => {
+    //     //     //   //     console.log(` ################## `, mediaSourceBuffer.updating)
+    //     //     //   //     if(!mediaSourceBuffer.updating && blobqueue.length) {
+
+    //     //     //   //       // console.log("========= 读取blob =========")
+    //     //     //   //       if(blobqueue.length == 0) {
+    //     //     //   //         clearInterval(fetchBlobTimer)
+    //     //     //   //         return
+    //     //     //   //       }
+    //     //     //   //       const blob = blobqueue.shift();
+    //     //     //   //       var reader = new FileReader();
+    //     //     //   //       reader.onload = function(evt) {
+    //     //     //   //         if (evt.target.readyState == FileReader.DONE) {
+    //     //     //   //           mediaSourceBuffer.appendBuffer(evt.target.result);
+    //     //     //   //           video.play()
+    //     //     //   //         }
+    //     //     //   //       }
+    //     //     //   //       reader.readAsArrayBuffer(blob);
+    //     //     //   //     }
+    //     //     //   //   }, 200)
+    //     //     //   // }
+    //     //     // }
+
+    //     //   };
+
+    //     // } catch (exception) {
+    //     //   alert('Error' + exception);
+    //     // }
+
+    // }, false);
+
+    mediaSource.addEventListener('sourceclose', function(e) {
+      console.log('MediaSource rcvd sourceclose - playback failed!');
+      console.log(e);
+    }, false);
+    
+</script>
+</html>

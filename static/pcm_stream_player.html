@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>流式播放器</title>
+</head>
+<body>
+  <audio id="stream_audio" autoplay controls></audio>
+</body>
+<script type="module">
+
+  import PCMPlayer from "./pcmPlayer.js"
+
+   //创建实例
+   var player = new PCMPlayer({
+    encoding: "16bitInt",
+    channels: 2,
+    sampleRate: 8000,
+    flushingTime: 2000
+  });
+  
+  PCMPlayer.prototype.volume = 1;
+
+  let wsServer = `ws://127.0.0.1:19898`
+  var socket9 = new WebSocket(wsServer);
+
+  socket9.onopen = function() {}
+  socket9.onerror = function() {}
+
+  try {
+
+    socket9.onmessage = function(evt) {
+      if(typeof evt.data != 'string') {
+        //接收到数据播放音频
+        var data = new Uint8Array(event.data);
+        player.feed(data);
+        console.log(player)
+      } else {
+        if(evt.data === 'done') {
+          console.log(`传输完成`)
+        }
+      }
+    };
+    
+  } catch (exception) {
+    alert('Error' + exception);
+  }
+
+</script>
+</html>

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>流式播放器</title>
+</head>
+<body>
+  <audio id="stream_audio" autoplay controls></audio>
+</body>
+<script>
+
+  createAudioMedia();
+  function createAudioMedia() {
+    // var appending = false;
+    var mediaSource, mediaSourceBuffer, audio;
+    var codec = 'audio/aac'; // HE-AAC v2; 由于MIMEtype不支持MP3 把文件转成aac格式来测试
+    mediaSource = new MediaSource();
+
+    mediaSource.addEventListener('sourceopen', function() {
+      console.log('mediaSource sourceopen');
+      mediaSourceBuffer = mediaSource.addSourceBuffer(codec);
+
+      // mediaSourceBuffer.onupdateend = function() { appending = false; }
+
+      let fetchBlobTimer;
+      let wsServer = `ws://127.0.0.1:19898`
+      var socket9 = new WebSocket(wsServer);
+
+      try {
+
+        var blobqueue = []
+
+        socket9.onopen = function() {}
+        socket9.onerror = function() {}
+        socket9.onclose = function() {}
+
+        socket9.onmessage = function(evt) {
+          if(typeof evt.data != 'string') {
+            blobqueue.push(evt.data)
+            // 以bufferArray读取
+            if(!fetchBlobTimer) {
+              fetchBlobTimer = setInterval( () => {
+                // if(!appending && blobqueue.length) { 
+                // 是否正在添加buffer，可以用原生支持的属性 "mediaSourceBuffer.updating"
+                if(!mediaSourceBuffer.updating && blobqueue.length) {
+                  const blob = blobqueue.shift();
+                  var reader = new FileReader();
+                  reader.onload = function(evt) {
+                    if (evt.target.readyState == FileReader.DONE) {
+                      appending = true;
+                      mediaSourceBuffer.appendBuffer(evt.target.result);
+                      audio.play();
+                    }
+                  }
+                  reader.readAsArrayBuffer(blob);
+                }
+              }, 0)
+            }
+
+          } else {
+            if(evt.data === 'done') {
+              console.log(`传输完成`)
+            }
+          }
+        };
+        
+      } catch (exception) {
+        alert('Error' + exception);
+      }
+
+    }, false);
+
+    mediaSource.addEventListener('sourceclose', function() {
+      console.log('MediaSource rcvd sourceclose - playback failed!');
+    }, false);
+
+    audio = document.getElementById("stream_audio");
+    audio.src = URL.createObjectURL(mediaSource);
+  }
+
+</script>
+</html>
